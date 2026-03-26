@@ -6,6 +6,7 @@ const { SHIPSTATION_PATHS } = require('../constants');
 const router = express.Router();
 
 let webhookEvents = [];
+let sseClients = [];
 
 function handle429(err, res) {
   if (err.response?.status === 429) {
@@ -14,6 +15,69 @@ function handle429(err, res) {
     return true;
   }
   return false;
+}
+
+function collectStringCandidates(value, out) {
+  if (!value) return;
+  if (typeof value === 'string') {
+    out.push(value);
+    return;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    out.push(String(value));
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectStringCandidates(v, out);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const v of Object.values(value)) collectStringCandidates(v, out);
+  }
+}
+
+function normalizeToken(s) {
+  return typeof s === 'string' ? s.trim().toLowerCase() : '';
+}
+
+function eventMatchesFilters(ev, filters) {
+  const { trackingNumber, labelId, shipmentId, resourceId } = filters;
+  const candidates = [];
+
+  collectStringCandidates(ev?.eventType, candidates);
+  collectStringCandidates(ev?.payload, candidates);
+
+  const normalized = new Set(candidates.map(normalizeToken).filter(Boolean));
+
+  function hasToken(token) {
+    const t = normalizeToken(token);
+    if (!t) return true;
+    if (normalized.has(t)) return true;
+    for (const cand of normalized) {
+      if (cand.includes(t)) return true;
+    }
+    return false;
+  }
+
+  return hasToken(trackingNumber) && hasToken(labelId) && hasToken(shipmentId) && hasToken(resourceId);
+}
+
+function broadcastSse(event) {
+  if (sseClients.length === 0) return;
+  const data = `data: ${JSON.stringify(event)}\n\n`;
+  const alive = [];
+
+  for (const client of sseClients) {
+    try {
+      if (client.filters && !eventMatchesFilters(event, client.filters)) continue;
+      client.res.write(data);
+      alive.push(client);
+    } catch {
+      // drop dead connection
+    }
+  }
+
+  sseClients = alive;
 }
 
 /**
@@ -87,11 +151,74 @@ router.post('/receive', (req, res) => {
   }
 
   console.log(`[${new Date().toISOString()}] Webhook received: ${event.eventType}`, JSON.stringify(req.body));
+  broadcastSse(event);
   res.status(200).json({ received: true });
 });
 
+/**
+ * GET /api/shipstation/webhooks/events
+ * Optional filters:
+ *   - tracking_number
+ *   - label_id
+ *   - shipment_id
+ *   - resource_id
+ */
 router.get('/events', (req, res) => {
-  res.json(webhookEvents);
+  const trackingNumber = typeof req.query?.tracking_number === 'string' ? req.query.tracking_number : '';
+  const labelId = typeof req.query?.label_id === 'string' ? req.query.label_id : '';
+  const shipmentId = typeof req.query?.shipment_id === 'string' ? req.query.shipment_id : '';
+  const resourceId = typeof req.query?.resource_id === 'string' ? req.query.resource_id : '';
+
+  const hasAnyFilter = Boolean(trackingNumber || labelId || shipmentId || resourceId);
+  if (!hasAnyFilter) return res.json(webhookEvents);
+
+  const filtered = webhookEvents.filter((ev) =>
+    eventMatchesFilters(ev, { trackingNumber, labelId, shipmentId, resourceId })
+  );
+  res.json(filtered);
+});
+
+/**
+ * GET /api/shipstation/webhooks/stream (SSE)
+ * Optional filters:
+ *   - tracking_number
+ *   - label_id
+ *   - shipment_id
+ *   - resource_id
+ */
+router.get('/stream', (req, res) => {
+  const trackingNumber = typeof req.query?.tracking_number === 'string' ? req.query.tracking_number : '';
+  const labelId = typeof req.query?.label_id === 'string' ? req.query.label_id : '';
+  const shipmentId = typeof req.query?.shipment_id === 'string' ? req.query.shipment_id : '';
+  const resourceId = typeof req.query?.resource_id === 'string' ? req.query.resource_id : '';
+
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  // Initial comment so proxies start streaming immediately
+  res.write(': connected\n\n');
+
+  const client = {
+    res,
+    filters: { trackingNumber, labelId, shipmentId, resourceId },
+  };
+  sseClients.push(client);
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+    } catch {
+      // ignore; close handler will clean up
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients = sseClients.filter((c) => c !== client);
+  });
 });
 
 router.delete('/events', (req, res) => {

@@ -70,6 +70,18 @@ export async function getWebhookEvents() {
   return data;
 }
 
+export async function getWebhookEventsForTracking(trackingNumber, extra = {}) {
+  const params = new URLSearchParams();
+  if (trackingNumber) params.set('tracking_number', trackingNumber);
+  if (extra?.labelId) params.set('label_id', extra.labelId);
+  if (extra?.shipmentId) params.set('shipment_id', extra.shipmentId);
+  if (extra?.resourceId) params.set('resource_id', extra.resourceId);
+
+  const qs = params.toString();
+  const { data } = await api.get(`/webhooks/events${qs ? `?${qs}` : ''}`);
+  return data;
+}
+
 export async function clearWebhookEvents() {
   const { data } = await api.delete('/webhooks/events');
   return data;

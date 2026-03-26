@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useFlow } from '../../context/FlowContext';
-import { trackLabel } from '../../api/shipstation';
+import { getWebhookEventsForTracking } from '../../api/shipstation';
 
 const STATUS_CONFIG = {
   delivered:        { label: 'Delivered',          color: 'bg-green-100 text-green-800' },
@@ -31,71 +31,154 @@ function formatDateTime(iso) {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
+function pickFirstString(...vals) {
+  for (const v of vals) {
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return null;
+}
+
+function asIso(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return new Date(value).toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function extractTrackEvent(webhookEvent) {
+  const payload = webhookEvent?.payload || {};
+  const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+
+  const occurredAt =
+    pickFirstString(
+      data?.occurred_at,
+      data?.carrier_occurred_at,
+      data?.event_time,
+      data?.event_timestamp,
+      payload?.occurred_at,
+      payload?.carrier_occurred_at
+    ) || webhookEvent?.receivedAt;
+
+  const status =
+    pickFirstString(
+      data?.status_code,
+      data?.status,
+      data?.tracking_status,
+      payload?.status_code,
+      payload?.status
+    ) || 'unknown';
+
+  const description =
+    pickFirstString(
+      data?.description,
+      data?.status_description,
+      data?.message,
+      data?.event_code,
+      payload?.description,
+      payload?.status_description
+    ) || webhookEvent?.eventType || 'Tracking update';
+
+  const city = pickFirstString(data?.city_locality, data?.city, payload?.city_locality, payload?.city);
+  const state = pickFirstString(data?.state_province, data?.state, payload?.state_province, payload?.state);
+  const postal = pickFirstString(data?.postal_code, data?.postal, payload?.postal_code, payload?.postal);
+
+  return {
+    occurred_at: asIso(occurredAt) || occurredAt,
+    status_code: status,
+    description,
+    city_locality: city,
+    state_province: state,
+    postal_code: postal,
+    raw: webhookEvent,
+  };
+}
+
 export default function Step4TrackShipment() {
   const { labelId, trackingNumber, updateChecklist, serverMode } = useFlow();
-  const [tracking, setTracking] = useState(null);
+  const [webhookEvents, setWebhookEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const isTestLabel = typeof labelId === 'string' && labelId.startsWith('se-test-');
 
   const fetchTracking = useCallback(async () => {
-    if (!labelId) return;
+    if (!trackingNumber) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await trackLabel(labelId);
-      setTracking(data);
-      updateChecklist('trackingUpdates', 'pass');
+      // Track Events v2 webhooks are most reliably correlated by tracking_number.
+      // Not all webhook payloads include label_id, so we avoid filtering by it here.
+      const data = await getWebhookEventsForTracking(trackingNumber);
+      const events = Array.isArray(data) ? data : [];
+      setWebhookEvents(events);
+      if (events.length > 0) updateChecklist('trackingUpdates', 'pass');
     } catch (err) {
-      if (err.isRateLimited) {
-        setError(`Rate limited. Retry after ${err.retryAfter}s`);
-        updateChecklist('rateLimitHandling', 'pass');
-      } else {
-        setError(err.response?.data?.message || err.message);
-      }
-      updateChecklist('trackingUpdates', 'fail');
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
-  }, [labelId, updateChecklist]);
+  }, [trackingNumber, labelId, updateChecklist]);
 
   useEffect(() => {
-    if (!labelId) return;
+    if (!trackingNumber) return;
+    // load any already-received events once (no polling)
     fetchTracking();
-  }, [labelId, fetchTracking]);
+  }, [trackingNumber, fetchTracking]);
 
-  const events = tracking?.events || [];
-  const currentStatus = tracking?.status_code || tracking?.status || 'unknown';
+  useEffect(() => {
+    if (!trackingNumber) return;
+    setError(null);
+
+    const params = new URLSearchParams();
+    params.set('tracking_number', trackingNumber);
+
+    const es = new EventSource(`/api/shipstation/webhooks/stream?${params.toString()}`);
+
+    es.onmessage = (msg) => {
+      try {
+        const ev = JSON.parse(msg.data);
+        setWebhookEvents((prev) => {
+          const next = [ev, ...prev];
+          return next.slice(0, 20);
+        });
+        updateChecklist('trackingUpdates', 'pass');
+      } catch {
+        // ignore malformed event
+      }
+    };
+
+    es.onerror = () => {
+      // Keep existing events; show a lightweight hint.
+      // (EventSource will retry automatically.)
+      setError((prev) => prev || 'Live webhook stream disconnected. Waiting to reconnect…');
+    };
+
+    return () => es.close();
+  }, [trackingNumber, updateChecklist]);
+
+  const timeline = webhookEvents
+    .filter((ev) => (ev?.eventType || '').toLowerCase().includes('track'))
+    .map(extractTrackEvent);
+  const currentStatus = timeline?.[0]?.status_code || 'unknown';
 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Step 3 — Track Shipment</h1>
-        <p className="text-gray-500 mt-1 text-sm">View tracking information for your label via ShipStation.</p>
+        <p className="text-gray-500 mt-1 text-sm">View tracking updates from ShipStation Track Events v2 webhooks.</p>
       </div>
 
-      {/* Sandbox tracking note */}
       {serverMode === 'sandbox' && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
           <p className="font-semibold">Sandbox tracking note</p>
-          <p>Tracking events require the package to be physically scanned by the carrier. In sandbox mode, the label is real and the tracking number is valid, but events will only appear once a package is actually in the mailstream. You will typically see <code className="bg-amber-100 px-1 rounded text-xs">label_created</code> status here.</p>
+          <p>Webhook delivery and carrier scans can be limited in sandbox. If you don’t see events, try sending a simulated payload to the receiver in Step 4 Webhooks.</p>
         </div>
       )}
 
-      {/* Test label tracking note (non-blocking) */}
-      {isTestLabel && (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 space-y-1">
-          <p className="font-semibold">Test label tracking note</p>
-          <p>
-            You’re using a <code className="bg-yellow-100 px-1 rounded text-xs">se-test-*</code> label id. ShipStation often rejects tracking requests for test labels.
-            This page will still call the tracking endpoint so you can see the API error response.
-          </p>
-        </div>
-      )}
-
-      {!labelId && (
+      {!trackingNumber && (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-          No label found. Complete Step 2 to create a shipment and label first.
+          No tracking number found. Complete Step 2 to create a label first.
         </div>
       )}
 
@@ -115,7 +198,7 @@ export default function Step4TrackShipment() {
                   <span className="font-mono text-gray-700 text-xs">{labelId}</span>
                 </p>
               )}
-              {tracking && (
+              {timeline.length > 0 && (
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-sm text-gray-500">Status:</span>
                   <StatusBadge status={currentStatus} />
@@ -124,7 +207,7 @@ export default function Step4TrackShipment() {
             </div>
             <button
               onClick={fetchTracking}
-              disabled={loading || !labelId}
+              disabled={loading || !trackingNumber}
               className="btn-secondary"
             >
               {loading ? 'Refreshing...' : '↻ Refresh'}
@@ -140,18 +223,18 @@ export default function Step4TrackShipment() {
         </div>
       )}
 
-      {events.length > 0 && (
+      {timeline.length > 0 && (
         <div className="step-card">
           <h2 className="section-title">Tracking Timeline</h2>
           <ol className="relative border-l border-gray-200 ml-3 space-y-6">
-            {events.map((event, i) => (
+            {timeline.map((event, i) => (
               <li key={i} className="ml-6">
                 <span className={`absolute -left-2.5 w-5 h-5 rounded-full flex items-center justify-center ${i === 0 ? 'bg-blue-600' : 'bg-gray-300'}`}>
                   <span className="w-2 h-2 bg-white rounded-full" />
                 </span>
                 <div className="space-y-0.5">
                   <p className="text-sm font-semibold text-gray-900">
-                    {event.description || event.status_description || event.event_code}
+                    {event.description}
                   </p>
                   {(event.city_locality || event.state_province) && (
                     <p className="text-xs text-gray-500">
@@ -169,9 +252,9 @@ export default function Step4TrackShipment() {
         </div>
       )}
 
-      {tracking && events.length === 0 && (
+      {trackingNumber && timeline.length === 0 && !loading && !error && (
         <div className="step-card text-center py-8 text-gray-500 text-sm">
-          No tracking events yet. The label has been created — events appear once the carrier scans the package.
+          No tracking webhook events yet. Register a <code className="bg-gray-100 px-1 rounded text-xs">track_event_v2</code> webhook in Step 4 and wait for delivery, or send a simulated event to the receiver to test end-to-end.
         </div>
       )}
     </div>

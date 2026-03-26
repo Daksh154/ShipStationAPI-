@@ -5,7 +5,7 @@ import { useFlow } from '../../context/FlowContext';
 const WEBHOOK_EVENTS = [
   { value: 'fulfillment_shipped_v2', label: 'Fulfillment Shipped' },
   { value: 'fulfillment_rejected_v2', label: 'Fulfillment Rejected' },
-  { value: 'track', label: 'Tracking Update' },
+  { value: 'track_event_v2', label: 'Tracking Event (v2)' },
   { value: 'sales_orders_imported', label: 'Sales Orders Imported' },
 ];
 
