@@ -20,7 +20,6 @@ export default function Step5Webhooks() {
   const [regLoading, setRegLoading] = useState(false);
   const [webhookId, setWebhookId] = useState(null);
   const [regError, setRegError] = useState(null);
-  const [sandboxBlocked, setSandboxBlocked] = useState(false);
 
   const [events, setEvents] = useState([]);
   const pollRef = useRef(null);
@@ -33,7 +32,6 @@ export default function Step5Webhooks() {
     e.preventDefault();
     setRegLoading(true);
     setRegError(null);
-    setSandboxBlocked(false);
     try {
       const data = await registerWebhook({
         name: regForm.name,
@@ -44,11 +42,7 @@ export default function Step5Webhooks() {
       updateChecklist('webhookRegistration', 'pass');
     } catch (err) {
       const errData = err.response?.data;
-      if (errData?.error === 'sandbox_limitation') {
-        setSandboxBlocked(true);
-      } else {
-        setRegError(errData?.message || err.message);
-      }
+      setRegError(errData?.errors?.[0]?.message || errData?.message || err.message);
       updateChecklist('webhookRegistration', 'fail');
     } finally {
       setRegLoading(false);
@@ -89,11 +83,13 @@ export default function Step5Webhooks() {
         <p className="text-gray-500 mt-1 text-sm">Register webhooks and monitor incoming events.</p>
       </div>
 
-      {/* Sandbox limitation banner */}
       {serverMode === 'sandbox' && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
-          <p className="font-semibold">Sandbox limitation: Webhooks not supported</p>
-          <p>ShipStation sandbox does not allow webhook registration. Switch to <code className="bg-amber-100 px-1 rounded text-xs">MODE=live</code> with a production API key to test webhooks end-to-end. The event receiver below still works and can be tested by sending a manual POST to your server.</p>
+          <p className="font-semibold">Sandbox note</p>
+          <p>
+            Webhook registration is attempted in sandbox, but ShipStation may reject it or may not deliver events depending on current sandbox support.
+            If registration fails, the error shown below is the exact ShipStation response.
+          </p>
         </div>
       )}
 
@@ -107,10 +103,6 @@ export default function Step5Webhooks() {
             <div className="bg-white rounded border border-green-200 p-3 font-mono text-sm text-gray-700 break-all">
               {webhookId}
             </div>
-          </div>
-        ) : sandboxBlocked ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-            Webhook registration is not available in sandbox mode. This is expected — switch to <code className="bg-amber-100 px-1 rounded">MODE=live</code> to test this endpoint.
           </div>
         ) : (
           <form onSubmit={handleRegister} className="space-y-4">

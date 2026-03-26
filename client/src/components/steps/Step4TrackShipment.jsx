@@ -36,14 +36,10 @@ export default function Step4TrackShipment() {
   const [tracking, setTracking] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const isTestLabel = typeof labelId === 'string' && labelId.startsWith('se-test-');
 
   const fetchTracking = useCallback(async () => {
     if (!labelId) return;
-    if (labelId.startsWith('se-test-')) {
-      setTracking(null);
-      setError('Test labels (se-test-*) cannot be tracked using the label tracking endpoint. Create a non-test label to track by label ID.');
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
@@ -65,11 +61,6 @@ export default function Step4TrackShipment() {
 
   useEffect(() => {
     if (!labelId) return;
-    if (labelId.startsWith('se-test-')) {
-      setTracking(null);
-      setError('Test labels (se-test-*) cannot be tracked using the label tracking endpoint. Create a non-test label to track by label ID.');
-      return;
-    }
     fetchTracking();
   }, [labelId, fetchTracking]);
 
@@ -88,6 +79,17 @@ export default function Step4TrackShipment() {
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
           <p className="font-semibold">Sandbox tracking note</p>
           <p>Tracking events require the package to be physically scanned by the carrier. In sandbox mode, the label is real and the tracking number is valid, but events will only appear once a package is actually in the mailstream. You will typically see <code className="bg-amber-100 px-1 rounded text-xs">label_created</code> status here.</p>
+        </div>
+      )}
+
+      {/* Test label tracking note (non-blocking) */}
+      {isTestLabel && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 space-y-1">
+          <p className="font-semibold">Test label tracking note</p>
+          <p>
+            You’re using a <code className="bg-yellow-100 px-1 rounded text-xs">se-test-*</code> label id. ShipStation often rejects tracking requests for test labels.
+            This page will still call the tracking endpoint so you can see the API error response.
+          </p>
         </div>
       )}
 

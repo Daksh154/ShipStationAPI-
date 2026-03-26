@@ -19,10 +19,8 @@ function handle429(err, res) {
 /**
  * POST /api/shipstation/webhooks/register
  *
- * NOTE: ShipStation sandbox/test environments may not support webhooks.
- * This endpoint returns an informational error in sandbox mode.
- * The UI will show a clear message explaining this limitation.
- * In live mode, this calls ShipStation POST /v2/environment/webhooks.
+ * NOTE: ShipStation sandbox/test environments may have limitations for webhooks.
+ * We always forward registration in sandbox/live so you can see the real API behavior.
  *
  * mock: returns local simulated webhook_id
  */
@@ -38,18 +36,10 @@ router.post('/register', async (req, res, next) => {
     });
   }
 
-  if (config.mode === 'sandbox') {
-    console.log(`[${new Date().toISOString()}] [SANDBOX] Webhooks not supported in sandbox — returning informational response`);
-    return res.status(400).json({
-      error: 'sandbox_limitation',
-      message: 'ShipStation sandbox does not support webhook registration. Switch to MODE=live with a production API key to test webhooks.',
-    });
-  }
-
-  // live mode
+  // sandbox/live mode
   try {
     const url = `${config.baseUrl}${SHIPSTATION_PATHS.WEBHOOKS}`;
-    console.log(`[${new Date().toISOString()}] [LIVE] POST ${url}`, JSON.stringify(req.body));
+    console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] POST ${url}`, JSON.stringify(req.body));
 
     const response = await axios.post(url, req.body, {
       headers: {
