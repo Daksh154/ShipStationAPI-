@@ -70,6 +70,9 @@ export default function Step3CreateLabel() {
         };
 
     const body = {
+      test_label: true,
+      rate_id: selectedRate?.rate_id || null,
+      selected_rate_amount: typeof selectedRate?.rate === 'number' ? selectedRate.rate : null,
       carrier_id: selectedRate?.carrier_id || '',
       service_code: selectedRate?.service_code || 'usps_priority_mail',
       ship_from: shipFrom,
@@ -81,8 +84,9 @@ export default function Step3CreateLabel() {
 
     try {
       const data = await createLabel(body);
-      setResult(data);
-      setLabelId(data.label_id);
+      const rawLabelId = typeof data?.label_id === 'string' ? data.label_id : null;
+      setResult({ ...data, label_id: rawLabelId });
+      setLabelId(rawLabelId);
       setTrackingNumber(data.tracking_number);
       updateChecklist('labelCreate', 'pass');
     } catch (err) {
@@ -121,7 +125,7 @@ export default function Step3CreateLabel() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Step 3 — Create Label</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          Creates a shipment + purchases a label in a single ShipEngine API call (<code className="text-xs bg-gray-100 px-1 rounded">POST /v1/labels</code>).
+          Creates a shipment + purchases a label in a single ShipStation API call (<code className="text-xs bg-gray-100 px-1 rounded">POST /v2/labels</code>).
         </p>
       </div>
 
@@ -261,7 +265,7 @@ export default function Step3CreateLabel() {
           </div>
 
           <button type="submit" disabled={loading || !selectedRate} className="btn-primary w-full justify-center">
-            {loading ? 'Creating Label...' : 'Create Label (POST /v1/labels)'}
+            {loading ? 'Creating Label...' : 'Create Label (POST /v2/labels)'}
           </button>
         </form>
       )}

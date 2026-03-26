@@ -6,7 +6,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.data?.error === 'rate_limited') {
-      const enhanced = new Error('Rate limited by ShipEngine');
+      const enhanced = new Error('Rate limited by ShipStation');
       enhanced.isRateLimited = true;
       enhanced.retryAfter = err.response.data.retryAfter;
       return Promise.reject(enhanced);
@@ -31,7 +31,7 @@ export async function getRates(body) {
 }
 
 /**
- * Create a label with inline shipment data in a single ShipEngine call.
+ * Create a label with inline shipment data in a single ShipStation call.
  * Returns label_id, shipment_id, tracking_number, label_download, shipment_cost, etc.
  */
 export async function createLabel(body) {
@@ -40,12 +40,12 @@ export async function createLabel(body) {
 }
 
 export async function voidLabel(labelId) {
-  const { data } = await api.put(`/label/${labelId}/void`);
+  const { data } = await api.put(`/label/${encodeURIComponent(labelId)}/void`);
   return data;
 }
 
 export async function trackLabel(labelId) {
-  const { data } = await api.get(`/label/${labelId}/track`);
+  const { data } = await api.get(`/label/${encodeURIComponent(labelId)}/track`);
   return data;
 }
 

@@ -93,7 +93,7 @@ export default function Step5Webhooks() {
       {serverMode === 'sandbox' && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 space-y-1">
           <p className="font-semibold">Sandbox limitation: Webhooks not supported</p>
-          <p>ShipEngine sandbox does not allow webhook registration. Switch to <code className="bg-amber-100 px-1 rounded text-xs">MODE=live</code> with a production API key to test webhooks end-to-end. The event receiver below still works and can be tested by sending a manual POST to your server.</p>
+          <p>ShipStation sandbox does not allow webhook registration. Switch to <code className="bg-amber-100 px-1 rounded text-xs">MODE=live</code> with a production API key to test webhooks end-to-end. The event receiver below still works and can be tested by sending a manual POST to your server.</p>
         </div>
       )}
 
@@ -152,7 +152,7 @@ export default function Step5Webhooks() {
         <pre className="bg-gray-900 text-green-400 rounded-lg p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap">
 {`curl -X POST http://localhost:3001/api/shipstation/webhooks/receive \\
   -H "Content-Type: application/json" \\
-  -H "x-shipengine-timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+  -H "x-shipstation-timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
   -d '{"event":"fulfillment_shipped_v2","resource_id":"se-123","tracking_number":"9400111899"}'`}
         </pre>
       </div>

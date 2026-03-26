@@ -75,7 +75,7 @@ export default function Sidebar() {
         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${modeStyle.color}`}>
           {modeStyle.label}
         </span>
-        <p className="text-xs text-gray-400">ShipEngine API v1</p>
+        <p className="text-xs text-gray-400">ShipStation API v2</p>
       </div>
     </aside>
   );

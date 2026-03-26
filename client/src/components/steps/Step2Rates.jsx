@@ -119,7 +119,7 @@ export default function Step2Rates() {
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Step 2 — Get Rates</h1>
-        <p className="text-gray-500 mt-1 text-sm">Fetch real carrier rates from ShipEngine.</p>
+        <p className="text-gray-500 mt-1 text-sm">Fetch real carrier rates from ShipStation.</p>
       </div>
 
       {/* Carriers */}
@@ -133,7 +133,7 @@ export default function Step2Rates() {
         )}
         {!carriersLoading && carriers.length === 0 && !carriersError && (
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-            No carriers found on your ShipEngine account. In sandbox mode, UPS, FedEx and USPS are pre-configured.
+            No carriers found on your ShipStation account.
           </div>
         )}
         {carriers.length > 0 && (

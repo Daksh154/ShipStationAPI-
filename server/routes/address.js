@@ -1,7 +1,5 @@
 const express = require('express');
-const axios = require('axios');
 const config = require('../config');
-const { SHIPENGINE_PATHS } = require('../constants');
 
 const router = express.Router();
 
@@ -17,16 +15,18 @@ function handle429(err, res) {
 /**
  * POST /api/shipstation/address/validate
  *
- * sandbox/live: calls ShipEngine POST /v1/addresses/validate — real validation with USPS/carrier data
- * mock: returns local verified response (no network call)
+ * ShipStation API v2 does NOT currently provide a dedicated address validation endpoint.
+ * This route remains for the demo flow, but always returns a local "verified" response.
+ * Real validation can be performed during label purchase by using `validate_address`
+ * on `POST /v2/labels`.
  *
- * ShipEngine expects an array of addresses and returns:
+ * Response shape matches the existing demo expectation:
  *   [{ status: 'verified'|'warning'|'error', matched_address: {...}, messages: [...] }]
  */
 router.post('/validate', async (req, res, next) => {
-  if (config.mode === 'mock') {
+  try {
     const input = Array.isArray(req.body) ? req.body[0] : req.body;
-    console.log(`[${new Date().toISOString()}] [MOCK] Address validate:`, JSON.stringify(input));
+    console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] Address validate (local):`, JSON.stringify(input));
     return res.json([
       {
         status: 'verified',
@@ -43,21 +43,6 @@ router.post('/validate', async (req, res, next) => {
         messages: [],
       },
     ]);
-  }
-
-  try {
-    const body = Array.isArray(req.body) ? req.body : [req.body];
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.ADDRESS_VALIDATE}`;
-    console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] POST ${url}`);
-
-    const response = await axios.post(url, body, {
-      headers: {
-        'API-Key': config.apiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    res.json(response.data);
   } catch (err) {
     if (handle429(err, res)) return;
     next({ message: err.message, details: err.response?.data });

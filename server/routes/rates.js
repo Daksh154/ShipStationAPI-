@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config');
-const { SHIPENGINE_PATHS } = require('../constants');
+const { SHIPSTATION_PATHS } = require('../constants');
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ function handle429(err, res) {
 /**
  * POST /api/shipstation/rates
  *
- * sandbox/live: calls ShipEngine POST /v1/rates/estimate
+ * sandbox/live: calls ShipStation POST /v2/rates/estimate
  *   Response shape: { rate_response: { rates: [...] } }
  *   Each rate: { rate_id, carrier_id, carrier_code, carrier_friendly_name, service_code,
  *               service_type, shipping_amount: { currency, amount }, delivery_days, ... }
@@ -72,12 +72,12 @@ router.post('/', async (req, res, next) => {
   }
 
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.RATES_ESTIMATE}`;
+    const url = `${config.baseUrl}${SHIPSTATION_PATHS.RATES_ESTIMATE}`;
     console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] POST ${url}`, JSON.stringify(req.body));
 
     const response = await axios.post(url, req.body, {
       headers: {
-        'API-Key': config.apiKey,
+        'api-key': config.apiKey,
         'Content-Type': 'application/json',
       },
     });

@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config');
-const { SHIPENGINE_PATHS } = require('../constants');
+const { SHIPSTATION_PATHS } = require('../constants');
 
 const router = express.Router();
 
@@ -19,10 +19,10 @@ function handle429(err, res) {
 /**
  * POST /api/shipstation/webhooks/register
  *
- * NOTE: ShipEngine sandbox does NOT support webhooks.
- * This endpoint will return an error in sandbox mode from ShipEngine's side.
+ * NOTE: ShipStation sandbox/test environments may not support webhooks.
+ * This endpoint returns an informational error in sandbox mode.
  * The UI will show a clear message explaining this limitation.
- * In live mode, this calls ShipEngine POST /v1/environment/webhooks.
+ * In live mode, this calls ShipStation POST /v2/environment/webhooks.
  *
  * mock: returns local simulated webhook_id
  */
@@ -42,18 +42,18 @@ router.post('/register', async (req, res, next) => {
     console.log(`[${new Date().toISOString()}] [SANDBOX] Webhooks not supported in sandbox — returning informational response`);
     return res.status(400).json({
       error: 'sandbox_limitation',
-      message: 'ShipEngine sandbox does not support webhook registration. Switch to MODE=live with a production API key to test webhooks.',
+      message: 'ShipStation sandbox does not support webhook registration. Switch to MODE=live with a production API key to test webhooks.',
     });
   }
 
   // live mode
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.WEBHOOKS}`;
+    const url = `${config.baseUrl}${SHIPSTATION_PATHS.WEBHOOKS}`;
     console.log(`[${new Date().toISOString()}] [LIVE] POST ${url}`, JSON.stringify(req.body));
 
     const response = await axios.post(url, req.body, {
       headers: {
-        'API-Key': config.apiKey,
+        'api-key': config.apiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -67,11 +67,11 @@ router.post('/register', async (req, res, next) => {
 
 /**
  * POST /api/shipstation/webhooks/receive
- * Local webhook listener — ShipEngine calls this when events occur.
+ * Local webhook listener — ShipStation calls this when events occur.
  * Always handled locally in all modes.
  */
 router.post('/receive', (req, res) => {
-  const timestamp = req.headers['x-shipengine-timestamp'];
+  const timestamp = req.headers['x-shipstation-timestamp'];
 
   if (timestamp) {
     const eventTime = new Date(timestamp).getTime();
@@ -85,7 +85,7 @@ router.post('/receive', (req, res) => {
     receivedAt: new Date().toISOString(),
     eventType: req.body?.event || req.body?.resource_type || 'unknown',
     headers: {
-      'x-shipengine-timestamp': timestamp || null,
+      'x-shipstation-timestamp': timestamp || null,
       'content-type': req.headers['content-type'],
     },
     payload: req.body,

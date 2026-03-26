@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config');
-const { SHIPENGINE_PATHS } = require('../constants');
+const { SHIPSTATION_PATHS } = require('../constants');
 
 const router = express.Router();
 
@@ -18,10 +18,10 @@ function handle429(err, res) {
  * POST /api/shipstation/label/create
  *
  * Creates a label with inline shipment data in a SINGLE API call.
- * ShipEngine POST /v1/labels — response includes both shipment_id AND label_id,
+ * ShipStation POST /v2/labels — response includes both shipment_id AND label_id,
  * plus tracking_number and label_download URLs.
  *
- * sandbox/live: calls real ShipEngine API — returns a real PDF-downloadable label
+ * sandbox/live: calls real ShipStation API — returns a real PDF-downloadable label
  * mock: returns local mock data
  *
  * Expected body:
@@ -29,7 +29,18 @@ function handle429(err, res) {
  *   packages ([{ weight, dimensions }]), label_format, label_layout
  */
 router.post('/create', async (req, res, next) => {
-  const { carrier_id, service_code, ship_from, ship_to, packages, label_format, label_layout } = req.body;
+  const {
+    rate_id,
+    testLabel,
+    selected_rate_amount,
+    carrier_id,
+    service_code,
+    ship_from,
+    ship_to,
+    packages,
+    label_format,
+    label_layout,
+  } = req.body;
 
   if (config.mode === 'mock') {
     const mockLabelId = `se-mock-label-${Date.now()}`;
@@ -43,25 +54,25 @@ router.post('/create', async (req, res, next) => {
       service_code: service_code || 'usps_priority_mail',
       ship_date: new Date().toISOString(),
       created_at: new Date().toISOString(),
-      shipment_cost: { currency: 'usd', amount: 8.40 },
+      shipment_cost: { currency: 'usd', amount: typeof selected_rate_amount === 'number' ? selected_rate_amount : 8.40 },
       label_format: label_format || 'pdf',
       label_layout: label_layout || '4x6',
       trackable: true,
       voided: false,
       voided_at: null,
       label_download: {
-        href: 'https://api.shipengine.com/v1/downloads/sample-label.pdf',
-        pdf: 'https://api.shipengine.com/v1/downloads/sample-label.pdf',
-        png: 'https://api.shipengine.com/v1/downloads/sample-label.png',
-        zpl: 'https://api.shipengine.com/v1/downloads/sample-label.zpl',
+        href: 'https://api.shipstation.com/v2/downloads/sample-label.pdf',
+        pdf: 'https://api.shipstation.com/v2/downloads/sample-label.pdf',
+        png: 'https://api.shipstation.com/v2/downloads/sample-label.png',
+        zpl: 'https://api.shipstation.com/v2/downloads/sample-label.zpl',
       },
     });
   }
 
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.LABELS}`;
-
     const payload = {
+      test_label: typeof testLabel === 'boolean' ? testLabel : true,
+      validate_address: 'validate_and_clean',
       shipment: {
         carrier_id,
         service_code,
@@ -73,11 +84,18 @@ router.post('/create', async (req, res, next) => {
       label_layout: label_layout || '4x6',
     };
 
-    console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] POST ${url}`, JSON.stringify(payload));
+    const url = rate_id
+      ? `${config.baseUrl}${SHIPSTATION_PATHS.LABELS_FROM_RATE(rate_id)}`
+      : `${config.baseUrl}${SHIPSTATION_PATHS.LABELS}`;
+
+    console.log(
+      `[${new Date().toISOString()}] [${config.mode.toUpperCase()}] POST ${url}`,
+      JSON.stringify(rate_id ? { ...payload, rate_id } : payload)
+    );
 
     const response = await axios.post(url, payload, {
       headers: {
-        'API-Key': config.apiKey,
+        'api-key': config.apiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -92,7 +110,7 @@ router.post('/create', async (req, res, next) => {
 /**
  * PUT /api/shipstation/label/:label_id/void
  *
- * sandbox/live: calls ShipEngine PUT /v1/labels/{id}/void
+ * sandbox/live: calls ShipStation PUT /v2/labels/{id}/void
  *   label_id is a real se-XXXXXXX from label creation — this works end-to-end
  * mock: returns local mock
  */
@@ -105,11 +123,11 @@ router.put('/:label_id/void', async (req, res, next) => {
   }
 
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.LABEL_VOID(label_id)}`;
+    const url = `${config.baseUrl}${SHIPSTATION_PATHS.LABEL_VOID(label_id)}`;
     console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] PUT ${url}`);
 
     const response = await axios.put(url, {}, {
-      headers: { 'API-Key': config.apiKey },
+      headers: { 'api-key': config.apiKey },
     });
 
     res.json(response.data);
@@ -122,7 +140,7 @@ router.put('/:label_id/void', async (req, res, next) => {
 /**
  * GET /api/shipstation/label/:label_id/track
  *
- * sandbox/live: calls ShipEngine GET /v1/labels/{id}/track
+ * sandbox/live: calls ShipStation GET /v2/labels/{id}/track
  *   Note: tracking events require the package to be in the carrier mailstream.
  *   Sandbox labels may show "label_created" status until scanned by carrier.
  * mock: returns local mock with simulated events
@@ -162,11 +180,11 @@ router.get('/:label_id/track', async (req, res, next) => {
   }
 
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.LABEL_TRACK(label_id)}`;
+    const url = `${config.baseUrl}${SHIPSTATION_PATHS.LABEL_TRACK(label_id)}`;
     console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] GET ${url}`);
 
     const response = await axios.get(url, {
-      headers: { 'API-Key': config.apiKey },
+      headers: { 'api-key': config.apiKey },
     });
 
     res.json(response.data);

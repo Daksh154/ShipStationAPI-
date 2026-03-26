@@ -35,7 +35,7 @@ app.use(errorHandler);
 app.listen(config.port, () => {
   console.log(`[${new Date().toISOString()}] Server running on port ${config.port} in ${config.mode.toUpperCase()} mode`);
   if (config.baseUrl) {
-    console.log(`[${new Date().toISOString()}] ShipEngine base URL: ${config.baseUrl}`);
+    console.log(`[${new Date().toISOString()}] ShipStation base URL: ${config.baseUrl}`);
   } else {
     console.log(`[${new Date().toISOString()}] Running in local mock mode — no network calls`);
   }

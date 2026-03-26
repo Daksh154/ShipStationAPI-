@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config');
-const { SHIPENGINE_PATHS } = require('../constants');
+const { SHIPSTATION_PATHS } = require('../constants');
 
 const router = express.Router();
 
@@ -17,8 +17,8 @@ function handle429(err, res) {
 /**
  * GET /api/shipstation/carriers
  *
- * sandbox/live: calls ShipEngine GET /v1/carriers — returns real carrier accounts
- *   connected to your ShipEngine account (UPS, FedEx, USPS in sandbox)
+ * sandbox/live: calls ShipStation GET /v2/carriers — returns real carrier accounts
+ *   connected to your ShipStation account
  * mock: returns 3 hardcoded carrier stubs
  */
 router.get('/', async (req, res, next) => {
@@ -59,11 +59,11 @@ router.get('/', async (req, res, next) => {
   }
 
   try {
-    const url = `${config.baseUrl}${SHIPENGINE_PATHS.CARRIERS}`;
+    const url = `${config.baseUrl}${SHIPSTATION_PATHS.CARRIERS}`;
     console.log(`[${new Date().toISOString()}] [${config.mode.toUpperCase()}] GET ${url}`);
 
     const response = await axios.get(url, {
-      headers: { 'API-Key': config.apiKey },
+      headers: { 'api-key': config.apiKey },
     });
 
     res.json(response.data);

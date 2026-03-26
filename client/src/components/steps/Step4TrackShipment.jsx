@@ -69,7 +69,7 @@ export default function Step4TrackShipment() {
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Step 4 — Track Shipment</h1>
-        <p className="text-gray-500 mt-1 text-sm">View tracking information for your label via ShipEngine.</p>
+        <p className="text-gray-500 mt-1 text-sm">View tracking information for your label via ShipStation.</p>
       </div>
 
       {/* Sandbox tracking note */}
