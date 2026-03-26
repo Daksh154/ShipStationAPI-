@@ -40,7 +40,6 @@ router.post('/', async (req, res, next) => {
             service_type: 'USPS Priority Mail',
             shipping_amount: { currency: 'usd', amount: 8.40 },
             delivery_days: 2,
-            estimated_delivery_date: new Date(Date.now() + 2 * 86400000).toISOString(),
           },
           {
             rate_id: 'se-rate-mock-002',
@@ -52,7 +51,6 @@ router.post('/', async (req, res, next) => {
             service_type: 'USPS First Class Mail',
             shipping_amount: { currency: 'usd', amount: 4.20 },
             delivery_days: 5,
-            estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString(),
           },
           {
             rate_id: 'se-rate-mock-003',
@@ -64,7 +62,6 @@ router.post('/', async (req, res, next) => {
             service_type: 'USPS Priority Mail Express',
             shipping_amount: { currency: 'usd', amount: 26.35 },
             delivery_days: 1,
-            estimated_delivery_date: new Date(Date.now() + 1 * 86400000).toISOString(),
           },
         ],
       },

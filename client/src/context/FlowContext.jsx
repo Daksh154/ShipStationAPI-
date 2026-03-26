@@ -19,6 +19,7 @@ export function FlowProvider({ children }) {
   const [validatedAddress, setValidatedAddress] = useState(null);
   const [selectedRate, setSelectedRate] = useState(null);
   const [carrierId, setCarrierId] = useState(null);
+  const [shipmentId, setShipmentId] = useState(null);
   const [labelId, setLabelId] = useState(null);
   const [trackingNumber, setTrackingNumber] = useState(null);
   const [labelVoided, setLabelVoided] = useState(false);
@@ -42,6 +43,8 @@ export function FlowProvider({ children }) {
     setSelectedRate,
     carrierId,
     setCarrierId,
+    shipmentId,
+    setShipmentId,
     labelId,
     setLabelId,
     trackingNumber,

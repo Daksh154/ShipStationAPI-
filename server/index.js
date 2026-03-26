@@ -6,6 +6,7 @@ const config = require('./config');
 const addressRoutes  = require('./routes/address');
 const carriersRoutes = require('./routes/carriers');
 const ratesRoutes    = require('./routes/rates');
+const shipmentsRoutes = require('./routes/shipments');
 const labelRoutes    = require('./routes/label');
 const webhookRoutes  = require('./routes/webhooks');
 const errorHandler   = require('./middleware/errorHandler');
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use('/api/shipstation/address',  addressRoutes);
 app.use('/api/shipstation/carriers', carriersRoutes);
 app.use('/api/shipstation/rates',    ratesRoutes);
+app.use('/api/shipstation/shipments', shipmentsRoutes);
 app.use('/api/shipstation/label',    labelRoutes);
 app.use('/api/shipstation/webhooks', webhookRoutes);
 

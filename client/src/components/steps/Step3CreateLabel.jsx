@@ -5,6 +5,7 @@ import { createLabel, voidLabel } from '../../api/shipstation';
 export default function Step3CreateLabel() {
   const {
     selectedRate,
+    shipmentId,
     validatedAddress,
     setLabelId,
     setTrackingNumber,
@@ -71,6 +72,7 @@ export default function Step3CreateLabel() {
 
     const body = {
       test_label: true,
+      shipment_id: shipmentId || null,
       rate_id: selectedRate?.rate_id || null,
       selected_rate_amount: typeof selectedRate?.rate === 'number' ? selectedRate.rate : null,
       carrier_id: selectedRate?.carrier_id || '',

@@ -39,6 +39,12 @@ export default function Step4TrackShipment() {
 
   const fetchTracking = useCallback(async () => {
     if (!labelId) return;
+    if (labelId.startsWith('se-test-')) {
+      setTracking(null);
+      setError('Test labels (se-test-*) cannot be tracked using the label tracking endpoint. Create a non-test label to track by label ID.');
+      updateChecklist('trackingUpdates', 'fail');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -118,11 +124,6 @@ export default function Step4TrackShipment() {
             </button>
           </div>
 
-          {tracking?.estimated_delivery_date && (
-            <p className="text-sm text-gray-600">
-              Estimated delivery: <span className="font-medium">{formatDateTime(tracking.estimated_delivery_date)}</span>
-            </p>
-          )}
         </div>
       )}
 

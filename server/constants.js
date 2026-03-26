@@ -3,7 +3,10 @@ const SHIPSTATION_PATHS = {
   // ShipStation v2 does not currently include a dedicated address validation endpoint.
   // We keep this here only for reference; the address route will not call it.
   ADDRESS_VALIDATE: '/v2/addresses/validate',
+  RATES: '/v2/rates',
   RATES_ESTIMATE: '/v2/rates/estimate',
+  SHIPMENTS: '/v2/shipments',
+  SHIPMENT_RATES: (shipmentId) => `/v2/shipments/${shipmentId}/rates`,
   CARRIERS: '/v2/carriers',
   LABELS: '/v2/labels',
   LABELS_FROM_RATE: (rateId) => `/v2/labels/rates/${rateId}`,

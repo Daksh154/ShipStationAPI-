@@ -30,6 +30,17 @@ export async function getRates(body) {
   return data;
 }
 
+export async function createShipment(body) {
+  const { data } = await api.post('/shipments', body);
+  return data;
+}
+
+export async function getShipmentRates(shipmentId, carrierId) {
+  const qs = carrierId ? `?carrier_id=${encodeURIComponent(carrierId)}` : '';
+  const { data } = await api.get(`/shipments/${encodeURIComponent(shipmentId)}/rates${qs}`);
+  return data;
+}
+
 /**
  * Create a label with inline shipment data in a single ShipStation call.
  * Returns label_id, shipment_id, tracking_number, label_download, shipment_cost, etc.

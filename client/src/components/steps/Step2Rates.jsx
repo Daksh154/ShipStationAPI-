@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useFlow } from '../../context/FlowContext';
-import { getCarriers, getRates } from '../../api/shipstation';
+import { getCarriers, createShipment, getShipmentRates } from '../../api/shipstation';
 
 export default function Step2Rates() {
-  const { setSelectedRate, setCarrierId, goToStep, updateChecklist, validatedAddress } = useFlow();
+  const { setSelectedRate, setCarrierId, setShipmentId, goToStep, updateChecklist, validatedAddress } = useFlow();
 
   const [carriers, setCarriers] = useState([]);
   const [carriersLoading, setCarriersLoading] = useState(true);
@@ -52,27 +52,78 @@ export default function Step2Rates() {
     setError(null);
     setRates([]);
 
-    const body = {
-      carrier_ids: [form.carrier_id],
-      from_postal_code: form.from_postal_code,
-      to_postal_code: form.to_postal_code,
-      to_country_code: 'US',
-      from_country_code: 'US',
-      weight: {
-        value: parseFloat(form.weight_lbs) || 1,
-        unit: 'pound',
-      },
-      dimensions: {
-        length: parseFloat(form.length) || 10,
-        width: parseFloat(form.width) || 8,
-        height: parseFloat(form.height) || 4,
-        unit: 'inch',
-      },
+    const shipFrom = {
+      name: 'My Store',
+      company_name: 'My Store Inc.',
+      phone: '+1 512-555-1234',
+      address_line1: '4009 Marathon Blvd',
+      city_locality: 'Austin',
+      state_province: 'TX',
+      postal_code: form.from_postal_code,
+      country_code: 'US',
+      address_residential_indicator: 'no',
+    };
+
+    const shipTo = validatedAddress
+      ? {
+          name: validatedAddress.name || 'Recipient',
+          address_line1: validatedAddress.address_line1,
+          city_locality: validatedAddress.city_locality,
+          state_province: validatedAddress.state_province,
+          postal_code: validatedAddress.postal_code || form.to_postal_code,
+          country_code: validatedAddress.country_code || 'US',
+          address_residential_indicator: 'yes',
+        }
+      : {
+          name: 'Jane Doe',
+          address_line1: '525 S Winchester Blvd',
+          city_locality: 'San Jose',
+          state_province: 'CA',
+          postal_code: form.to_postal_code,
+          country_code: 'US',
+          address_residential_indicator: 'yes',
+        };
+
+    const shipmentBody = {
+      shipments: [
+        {
+          carrier_id: form.carrier_id,
+          service_code: null,
+          ship_from: shipFrom,
+          ship_to: shipTo,
+          packages: [
+            {
+              weight: {
+                value: parseFloat(form.weight_lbs) || 1,
+                unit: 'pound',
+              },
+              dimensions: {
+                length: parseFloat(form.length) || 10,
+                width: parseFloat(form.width) || 8,
+                height: parseFloat(form.height) || 4,
+                unit: 'inch',
+              },
+            },
+          ],
+        },
+      ],
     };
 
     try {
-      const data = await getRates(body);
-      const rateList = data?.rate_response?.rates || data?.rates || (Array.isArray(data) ? data : []);
+      const shipmentRes = await createShipment(shipmentBody);
+      const shipment =
+        shipmentRes?.shipment
+        || shipmentRes?.shipments?.[0]
+        || shipmentRes?.shipments_response?.shipments?.[0]
+        || shipmentRes?.data?.shipments?.[0]
+        || shipmentRes;
+      const currentShipmentId = shipment?.shipment_id || shipmentRes?.shipment_id;
+      setShipmentId(currentShipmentId || null);
+      if (!currentShipmentId) {
+        throw new Error('Shipment created but shipment_id is missing.');
+      }
+      const data = await getShipmentRates(currentShipmentId, form.carrier_id);
+      const rateList = data?.rates || data?.rate_response?.rates || (Array.isArray(data) ? data : []);
       setRates(rateList);
       if (rateList.length > 0) {
         updateChecklist('rateFetching', 'pass');
@@ -118,8 +169,8 @@ export default function Step2Rates() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Step 2 — Get Rates</h1>
-        <p className="text-gray-500 mt-1 text-sm">Fetch real carrier rates from ShipStation.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Step 2 — Create Shipment & Get Rates</h1>
+        <p className="text-gray-500 mt-1 text-sm">Create a shipment first, then fetch rates for that shipment.</p>
       </div>
 
       {/* Carriers */}
@@ -195,7 +246,7 @@ export default function Step2Rates() {
         </div>
 
         <button type="submit" disabled={loading || !form.carrier_id} className="btn-primary w-full justify-center">
-          {loading ? 'Fetching Rates...' : 'Get Rates'}
+          {loading ? 'Creating Shipment & Fetching Rates...' : 'Create Shipment & Get Rates'}
         </button>
       </form>
 
@@ -215,7 +266,6 @@ export default function Step2Rates() {
                   <th className="text-left py-2 pr-4 font-medium text-gray-600">Carrier</th>
                   <th className="text-left py-2 pr-4 font-medium text-gray-600">Service</th>
                   <th className="text-left py-2 pr-4 font-medium text-gray-600">Rate</th>
-                  <th className="text-left py-2 pr-4 font-medium text-gray-600">Est. Delivery</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -232,9 +282,6 @@ export default function Step2Rates() {
                       </td>
                       <td className="py-3 pr-4 text-gray-600">{rate.service_type || rate.service_code}</td>
                       <td className="py-3 pr-4 font-semibold text-gray-900">{formatRate(rate)}</td>
-                      <td className="py-3 pr-4 text-gray-500">
-                        {rate.delivery_days ? `${rate.delivery_days} day(s)` : rate.estimated_delivery_date || '—'}
-                      </td>
                       <td className="py-3">
                         <button
                           onClick={() => handleSelect(rate)}

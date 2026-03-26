@@ -31,7 +31,6 @@ function handle429(err, res) {
 router.post('/create', async (req, res, next) => {
   const {
     rate_id,
-    testLabel,
     selected_rate_amount,
     carrier_id,
     service_code,
@@ -70,8 +69,15 @@ router.post('/create', async (req, res, next) => {
   }
 
   try {
+    const requestedTestLabel =
+      typeof req.body?.test_label === 'boolean'
+        ? req.body.test_label
+        : typeof req.body?.testLabel === 'boolean'
+          ? req.body.testLabel
+          : null;
+
     const payload = {
-      test_label: typeof testLabel === 'boolean' ? testLabel : true,
+      test_label: requestedTestLabel ?? true,
       validate_address: 'validate_and_clean',
       shipment: {
         carrier_id,
@@ -155,7 +161,6 @@ router.get('/:label_id/track', async (req, res, next) => {
       tracking_number: '9400111899223456789012',
       status_code: 'in_transit',
       status_description: 'In Transit',
-      estimated_delivery_date: new Date(Date.now() + 2 * 86400000).toISOString(),
       events: [
         {
           occurred_at: new Date(now - 2 * 3600000).toISOString(),
