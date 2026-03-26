@@ -1,9 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { useFlow } from '../../context/FlowContext';
-import { getCarriers, createShipment, getShipmentRates } from '../../api/shipstation';
+import { getCarriers, createShipment, getShipmentRates, getRates, createLabel } from '../../api/shipstation';
+
+function dedupeRates(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const r of list) {
+    const key = getRateKey(r);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+function getRateKey(rate) {
+  // Prefer rate_id when present (ShipStation v2 rates usually have se-* ids)
+  if (rate?.rate_id) return `rate_id:${rate.rate_id}`;
+
+  // Fallback: build a stable key for cases where rate_id is missing
+  const carrier = rate?.carrier_id || rate?.carrier_code || '';
+  const service = rate?.service_code || rate?.service_type || '';
+  const amount = rate?.shipping_amount?.amount ?? rate?.shipment_cost?.amount ?? '';
+  const currency = rate?.shipping_amount?.currency ?? rate?.shipment_cost?.currency ?? '';
+  const packageType = rate?.package_type || rate?.package_code || '';
+  return `fallback:${carrier}|${service}|${currency}|${amount}|${packageType}`;
+}
 
 export default function Step2Rates() {
-  const { setSelectedRate, setCarrierId, setShipmentId, goToStep, updateChecklist, validatedAddress } = useFlow();
+  const {
+    setSelectedRate,
+    setCarrierId,
+    setShipmentId,
+    setLabelId,
+    setTrackingNumber,
+    shipmentId,
+    goToStep,
+    updateChecklist,
+    validatedAddress,
+  } = useFlow();
 
   const [carriers, setCarriers] = useState([]);
   const [carriersLoading, setCarriersLoading] = useState(true);
@@ -23,6 +59,8 @@ export default function Step2Rates() {
   const [rates, setRates] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState(null);
+  const [labelCreating, setLabelCreating] = useState(false);
+  const [shipmentDraft, setShipmentDraft] = useState(null);
 
   useEffect(() => {
     async function loadCarriers() {
@@ -51,6 +89,10 @@ export default function Step2Rates() {
     setLoading(true);
     setError(null);
     setRates([]);
+    setSelectedId(null);
+    setSelectedRate(null);
+    setLabelId(null);
+    setTrackingNumber(null);
 
     const shipFrom = {
       name: 'My Store',
@@ -67,6 +109,7 @@ export default function Step2Rates() {
     const shipTo = validatedAddress
       ? {
           name: validatedAddress.name || 'Recipient',
+          phone: validatedAddress.phone || '+1 202-555-1234',
           address_line1: validatedAddress.address_line1,
           city_locality: validatedAddress.city_locality,
           state_province: validatedAddress.state_province,
@@ -76,6 +119,7 @@ export default function Step2Rates() {
         }
       : {
           name: 'Jane Doe',
+          phone: '+1 202-555-1234',
           address_line1: '525 S Winchester Blvd',
           city_locality: 'San Jose',
           state_province: 'CA',
@@ -84,32 +128,36 @@ export default function Step2Rates() {
           address_residential_indicator: 'yes',
         };
 
+    const packages = [
+      {
+        weight: {
+          value: parseFloat(form.weight_lbs) || 1,
+          unit: 'pound',
+        },
+        dimensions: {
+          length: parseFloat(form.length) || 10,
+          width: parseFloat(form.width) || 8,
+          height: parseFloat(form.height) || 4,
+          unit: 'inch',
+        },
+      },
+    ];
+
     const shipmentBody = {
       shipments: [
         {
+          validate_address: 'validate_and_clean',
           carrier_id: form.carrier_id,
           service_code: null,
           ship_from: shipFrom,
           ship_to: shipTo,
-          packages: [
-            {
-              weight: {
-                value: parseFloat(form.weight_lbs) || 1,
-                unit: 'pound',
-              },
-              dimensions: {
-                length: parseFloat(form.length) || 10,
-                width: parseFloat(form.width) || 8,
-                height: parseFloat(form.height) || 4,
-                unit: 'inch',
-              },
-            },
-          ],
+          packages,
         },
       ],
     };
 
     try {
+      setShipmentDraft({ shipFrom, shipTo, packages });
       const shipmentRes = await createShipment(shipmentBody);
       const shipment =
         shipmentRes?.shipment
@@ -122,14 +170,38 @@ export default function Step2Rates() {
       if (!currentShipmentId) {
         throw new Error('Shipment created but shipment_id is missing.');
       }
-      const data = await getShipmentRates(currentShipmentId, form.carrier_id);
-      const rateList = data?.rates || data?.rate_response?.rates || (Array.isArray(data) ? data : []);
-      setRates(rateList);
-      if (rateList.length > 0) {
+      const shipmentRatesData = await getShipmentRates(currentShipmentId);
+      let rateList = shipmentRatesData?.rates
+        || shipmentRatesData?.rate_response?.rates
+        || (Array.isArray(shipmentRatesData) ? shipmentRatesData : []);
+
+      // Fallback: if shipment rates are empty, use rate estimates.
+      if (rateList.length === 0) {
+        const estimateBody = {
+          carrier_ids: [form.carrier_id],
+          from_postal_code: form.from_postal_code,
+          to_postal_code: form.to_postal_code,
+          to_country_code: 'US',
+          from_country_code: 'US',
+          weight: packages[0].weight,
+          dimensions: packages[0].dimensions,
+        };
+        const estimateData = await getRates(estimateBody);
+        const estimateList = estimateData?.rate_response?.rates
+          || estimateData?.rates
+          || (Array.isArray(estimateData) ? estimateData : []);
+        if (estimateList.length > 0) {
+          rateList = estimateList;
+        }
+      }
+
+      const uniqueRates = dedupeRates(rateList);
+      setRates(uniqueRates);
+      if (uniqueRates.length > 0) {
         updateChecklist('rateFetching', 'pass');
       } else {
         updateChecklist('rateFetching', 'fail');
-        setError('No rates returned. Check your carrier ID and postal codes.');
+        setError('No rates returned from shipment rates or estimates. Check your carrier ID and postal codes.');
       }
     } catch (err) {
       if (err.isRateLimited) {
@@ -145,7 +217,17 @@ export default function Step2Rates() {
   }
 
   function handleSelect(rate) {
-    setSelectedId(rate.rate_id || rate.service_code);
+    const nextId = getRateKey(rate);
+    if (!nextId) return;
+
+    if (selectedId === nextId) {
+      setSelectedId(null);
+      setSelectedRate(null);
+      setCarrierId(null);
+      return;
+    }
+
+    setSelectedId(nextId);
     setSelectedRate({
       rate_id: rate.rate_id,
       service_code: rate.service_code,
@@ -155,6 +237,54 @@ export default function Step2Rates() {
       carrier_friendly_name: rate.carrier_friendly_name || rate.carrier_code || rate.carrier_id,
     });
     setCarrierId(rate.carrier_id);
+  }
+
+  async function handleContinue() {
+    if (!shipmentDraft || !shipmentId || !selectedId) {
+      setError('Missing shipment, rate, or package details. Please fetch rates and select a rate first.');
+      return;
+    }
+
+    const rate = rates.find((r) => getRateKey(r) === selectedId);
+    if (!rate) {
+      setError('Selected rate not found. Please select a rate again.');
+      return;
+    }
+
+    setLabelCreating(true);
+    setError(null);
+    try {
+      const body = {
+        test_label: true,
+        shipment_id: shipmentId,
+        rate_id: rate.rate_id || null,
+        selected_rate_amount: rate.shipping_amount?.amount ?? null,
+        carrier_id: rate.carrier_id || '',
+        service_code: rate.service_code || '',
+        ship_from: shipmentDraft.shipFrom,
+        ship_to: shipmentDraft.shipTo,
+        packages: shipmentDraft.packages,
+        label_format: 'pdf',
+        label_layout: '4x6',
+      };
+
+      const data = await createLabel(body);
+      const rawLabelId = typeof data?.label_id === 'string' ? data.label_id : null;
+      setLabelId(rawLabelId);
+      setTrackingNumber(data?.tracking_number || null);
+      updateChecklist('labelCreate', 'pass');
+      goToStep(3);
+    } catch (err) {
+      if (err.isRateLimited) {
+        setError(`Rate limited. Retry after ${err.retryAfter}s`);
+        updateChecklist('rateLimitHandling', 'pass');
+      } else {
+        setError(err.response?.data?.errors?.[0]?.message || err.response?.data?.message || err.message);
+      }
+      updateChecklist('labelCreate', 'fail');
+    } finally {
+      setLabelCreating(false);
+    }
   }
 
   function formatRate(rate) {
@@ -245,7 +375,7 @@ export default function Step2Rates() {
           </div>
         </div>
 
-        <button type="submit" disabled={loading || !form.carrier_id} className="btn-primary w-full justify-center">
+        <button type="submit" disabled={loading || labelCreating || !form.carrier_id} className="btn-primary w-full justify-center">
           {loading ? 'Creating Shipment & Fetching Rates...' : 'Create Shipment & Get Rates'}
         </button>
       </form>
@@ -271,7 +401,7 @@ export default function Step2Rates() {
               </thead>
               <tbody>
                 {rates.map((rate, i) => {
-                  const isSelected = selectedId === (rate.rate_id || rate.service_code);
+                  const isSelected = selectedId === getRateKey(rate);
                   return (
                     <tr
                       key={rate.rate_id || i}
@@ -285,6 +415,7 @@ export default function Step2Rates() {
                       <td className="py-3">
                         <button
                           onClick={() => handleSelect(rate)}
+                          disabled={labelCreating}
                           className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                             isSelected
                               ? 'bg-blue-600 text-white'
@@ -302,9 +433,9 @@ export default function Step2Rates() {
           </div>
 
           {selectedId && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <button onClick={() => goToStep(3)} className="btn-primary">
-                Proceed to Create Label →
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+              <button onClick={handleContinue} disabled={labelCreating} className="btn-primary">
+                {labelCreating ? 'Creating Label...' : 'Continue →'}
               </button>
             </div>
           )}

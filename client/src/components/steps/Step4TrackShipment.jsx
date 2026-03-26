@@ -42,7 +42,6 @@ export default function Step4TrackShipment() {
     if (labelId.startsWith('se-test-')) {
       setTracking(null);
       setError('Test labels (se-test-*) cannot be tracked using the label tracking endpoint. Create a non-test label to track by label ID.');
-      updateChecklist('trackingUpdates', 'fail');
       return;
     }
     setLoading(true);
@@ -65,7 +64,13 @@ export default function Step4TrackShipment() {
   }, [labelId, updateChecklist]);
 
   useEffect(() => {
-    if (labelId) fetchTracking();
+    if (!labelId) return;
+    if (labelId.startsWith('se-test-')) {
+      setTracking(null);
+      setError('Test labels (se-test-*) cannot be tracked using the label tracking endpoint. Create a non-test label to track by label ID.');
+      return;
+    }
+    fetchTracking();
   }, [labelId, fetchTracking]);
 
   const events = tracking?.events || [];
@@ -74,7 +79,7 @@ export default function Step4TrackShipment() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Step 4 — Track Shipment</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Step 3 — Track Shipment</h1>
         <p className="text-gray-500 mt-1 text-sm">View tracking information for your label via ShipStation.</p>
       </div>
 
@@ -88,7 +93,7 @@ export default function Step4TrackShipment() {
 
       {!labelId && (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-          No label found. Complete Step 3 to create a label first.
+          No label found. Complete Step 2 to create a shipment and label first.
         </div>
       )}
 

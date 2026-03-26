@@ -85,7 +85,7 @@ export default function Step5Webhooks() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Step 5 — Webhooks</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Step 4 — Webhooks</h1>
         <p className="text-gray-500 mt-1 text-sm">Register webhooks and monitor incoming events.</p>
       </div>
 

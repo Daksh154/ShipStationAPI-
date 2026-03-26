@@ -132,7 +132,7 @@ export default function Step6Checklist() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Step 6 — Test Checklist</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Step 5 — Test Checklist</h1>
         <p className="text-gray-500 mt-1 text-sm">End-to-end verification checklist for ShipStation integration.</p>
       </div>
 

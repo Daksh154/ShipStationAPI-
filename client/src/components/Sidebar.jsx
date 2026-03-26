@@ -4,18 +4,16 @@ import { useFlow } from '../context/FlowContext';
 const steps = [
   { id: 1, label: 'Address Validation', icon: '📍' },
   { id: 2, label: 'Get Rates',          icon: '💰' },
-  { id: 3, label: 'Create Label',       icon: '🏷️' },
-  { id: 4, label: 'Track Shipment',     icon: '🚚' },
-  { id: 5, label: 'Webhooks',           icon: '🔔' },
-  { id: 6, label: 'Test Checklist',     icon: '✅' },
+  { id: 3, label: 'Track Shipment',     icon: '🚚' },
+  { id: 4, label: 'Webhooks',           icon: '🔔' },
+  { id: 5, label: 'Test Checklist',     icon: '✅' },
 ];
 
 const stepToCheckKey = {
   1: 'addressValid',
   2: 'rateFetching',
-  3: 'labelCreate',
-  4: 'trackingUpdates',
-  5: 'webhookRegistration',
+  3: 'trackingUpdates',
+  4: 'webhookRegistration',
 };
 
 const MODE_LABELS = {
