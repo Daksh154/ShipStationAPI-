@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useFlow } from '../../context/FlowContext';
 import { getCarriers, createShipment, getShipmentRates, getRates, createLabel } from '../../api/shipstation';
+import {
+  DEFAULT_SHIP_FROM,
+  DEFAULT_SHIP_TO_FALLBACK,
+  shipToFromValidatedAddress,
+} from '../../constants/demoAddresses';
 
 function dedupeRates(list) {
   if (!Array.isArray(list)) return [];
@@ -16,10 +21,8 @@ function dedupeRates(list) {
 }
 
 function getRateKey(rate) {
-  // Prefer rate_id when present (ShipStation v2 rates usually have se-* ids)
   if (rate?.rate_id) return `rate_id:${rate.rate_id}`;
 
-  // Fallback: build a stable key for cases where rate_id is missing
   const carrier = rate?.carrier_id || rate?.carrier_code || '';
   const service = rate?.service_code || rate?.service_type || '';
   const amount = rate?.shipping_amount?.amount ?? rate?.shipment_cost?.amount ?? '';
@@ -41,14 +44,23 @@ export default function Step2Rates() {
     validatedAddress,
   } = useFlow();
 
+  const [shipFrom, setShipFrom] = useState(() => ({ ...DEFAULT_SHIP_FROM }));
+  const [shipTo, setShipTo] = useState(() => ({ ...DEFAULT_SHIP_TO_FALLBACK }));
+
+  useEffect(() => {
+    if (validatedAddress) {
+      setShipTo(shipToFromValidatedAddress(validatedAddress));
+    } else {
+      setShipTo({ ...DEFAULT_SHIP_TO_FALLBACK });
+    }
+  }, [validatedAddress]);
+
   const [carriers, setCarriers] = useState([]);
   const [carriersLoading, setCarriersLoading] = useState(true);
   const [carriersError, setCarriersError] = useState(null);
 
   const [form, setForm] = useState({
     carrier_id: '',
-    from_postal_code: '78756',
-    to_postal_code: validatedAddress?.postal_code || '90210',
     weight_lbs: '2',
     length: '12',
     width: '8',
@@ -84,6 +96,16 @@ export default function Step2Rates() {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
+  function handleShipFromChange(e) {
+    const { name, value } = e.target;
+    setShipFrom((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleShipToChange(e) {
+    const { name, value } = e.target;
+    setShipTo((prev) => ({ ...prev, [name]: value }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
@@ -93,40 +115,6 @@ export default function Step2Rates() {
     setSelectedRate(null);
     setLabelId(null);
     setTrackingNumber(null);
-
-    const shipFrom = {
-      name: 'My Store',
-      company_name: 'My Store Inc.',
-      phone: '+1 512-555-1234',
-      address_line1: '4009 Marathon Blvd',
-      city_locality: 'Austin',
-      state_province: 'TX',
-      postal_code: form.from_postal_code,
-      country_code: 'US',
-      address_residential_indicator: 'no',
-    };
-
-    const shipTo = validatedAddress
-      ? {
-          name: validatedAddress.name || 'Recipient',
-          phone: validatedAddress.phone || '+1 202-555-1234',
-          address_line1: validatedAddress.address_line1,
-          city_locality: validatedAddress.city_locality,
-          state_province: validatedAddress.state_province,
-          postal_code: validatedAddress.postal_code || form.to_postal_code,
-          country_code: validatedAddress.country_code || 'US',
-          address_residential_indicator: 'yes',
-        }
-      : {
-          name: 'Jane Doe',
-          phone: '+1 202-555-1234',
-          address_line1: '525 S Winchester Blvd',
-          city_locality: 'San Jose',
-          state_province: 'CA',
-          postal_code: form.to_postal_code,
-          country_code: 'US',
-          address_residential_indicator: 'yes',
-        };
 
     const packages = [
       {
@@ -175,14 +163,13 @@ export default function Step2Rates() {
         || shipmentRatesData?.rate_response?.rates
         || (Array.isArray(shipmentRatesData) ? shipmentRatesData : []);
 
-      // Fallback: if shipment rates are empty, use rate estimates.
       if (rateList.length === 0) {
         const estimateBody = {
           carrier_ids: [form.carrier_id],
-          from_postal_code: form.from_postal_code,
-          to_postal_code: form.to_postal_code,
-          to_country_code: 'US',
-          from_country_code: 'US',
+          from_postal_code: shipFrom.postal_code,
+          to_postal_code: shipTo.postal_code,
+          to_country_code: shipTo.country_code || 'US',
+          from_country_code: shipFrom.country_code || 'US',
           weight: packages[0].weight,
           dimensions: packages[0].dimensions,
         };
@@ -261,8 +248,8 @@ export default function Step2Rates() {
         selected_rate_amount: rate.shipping_amount?.amount ?? null,
         carrier_id: rate.carrier_id || '',
         service_code: rate.service_code || '',
-        ship_from: shipmentDraft.shipFrom,
-        ship_to: shipmentDraft.shipTo,
+        ship_from: shipFrom,
+        ship_to: shipTo,
         packages: shipmentDraft.packages,
         label_format: 'pdf',
         label_layout: '4x6',
@@ -303,7 +290,6 @@ export default function Step2Rates() {
         <p className="text-gray-500 mt-1 text-sm">Create a shipment first, then fetch rates for that shipment.</p>
       </div>
 
-      {/* Carriers */}
       <div className="step-card space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="section-title mb-0">Your Carrier Accounts</h2>
@@ -337,41 +323,135 @@ export default function Step2Rates() {
         )}
       </div>
 
-      {/* Rate form */}
-      <form onSubmit={handleSubmit} className="step-card space-y-4">
-        <h2 className="section-title">Rate Request</h2>
+      <form onSubmit={handleSubmit} className="step-card space-y-6">
+        <h2 className="section-title">Addresses & package</h2>
 
-        {selectedCarrier && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-            Selected carrier: <span className="font-semibold">{selectedCarrier.friendly_name || selectedCarrier.carrier_code}</span>
-            <span className="font-mono ml-2 text-xs text-blue-600">({form.carrier_id})</span>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Ship from</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label-text">Name</label>
+              <input className="input-field" name="name" value={shipFrom.name} onChange={handleShipFromChange} required />
+            </div>
+            <div className="col-span-2">
+              <label className="label-text">Company</label>
+              <input className="input-field" name="company_name" value={shipFrom.company_name} onChange={handleShipFromChange} />
+            </div>
+            <div className="col-span-2">
+              <label className="label-text">Address line 1</label>
+              <input className="input-field" name="address_line1" value={shipFrom.address_line1} onChange={handleShipFromChange} required />
+            </div>
+            <div>
+              <label className="label-text">City</label>
+              <input className="input-field" name="city_locality" value={shipFrom.city_locality} onChange={handleShipFromChange} required />
+            </div>
+            <div>
+              <label className="label-text">State</label>
+              <input className="input-field" name="state_province" value={shipFrom.state_province} onChange={handleShipFromChange} required />
+            </div>
+            <div>
+              <label className="label-text">Postal code</label>
+              <input className="input-field" name="postal_code" value={shipFrom.postal_code} onChange={handleShipFromChange} required />
+            </div>
+            <div>
+              <label className="label-text">Country code</label>
+              <input className="input-field" name="country_code" value={shipFrom.country_code} onChange={handleShipFromChange} maxLength={2} required />
+            </div>
+            <div>
+              <label className="label-text">Phone</label>
+              <input className="input-field" name="phone" value={shipFrom.phone} onChange={handleShipFromChange} required />
+            </div>
+            <div>
+              <label className="label-text">Residential</label>
+              <select
+                className="input-field"
+                name="address_residential_indicator"
+                value={shipFrom.address_residential_indicator}
+                onChange={handleShipFromChange}
+              >
+                <option value="no">No (commercial)</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
           </div>
-        )}
+        </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label-text">From Postal Code</label>
-            <input className="input-field" name="from_postal_code" value={form.from_postal_code} onChange={handleChange} placeholder="78756" required />
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-800">Ship to</h3>
+            {validatedAddress && (
+              <span className="text-xs text-blue-600 font-medium">Prefilled from Step 1 — editable</span>
+            )}
           </div>
-          <div>
-            <label className="label-text">To Postal Code</label>
-            <input className="input-field" name="to_postal_code" value={form.to_postal_code} onChange={handleChange} placeholder="90210" required />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label-text">Name</label>
+              <input className="input-field" name="name" value={shipTo.name} onChange={handleShipToChange} required />
+            </div>
+            <div className="col-span-2">
+              <label className="label-text">Address line 1</label>
+              <input className="input-field" name="address_line1" value={shipTo.address_line1} onChange={handleShipToChange} required />
+            </div>
+            <div>
+              <label className="label-text">City</label>
+              <input className="input-field" name="city_locality" value={shipTo.city_locality} onChange={handleShipToChange} required />
+            </div>
+            <div>
+              <label className="label-text">State</label>
+              <input className="input-field" name="state_province" value={shipTo.state_province} onChange={handleShipToChange} required />
+            </div>
+            <div>
+              <label className="label-text">Postal code</label>
+              <input className="input-field" name="postal_code" value={shipTo.postal_code} onChange={handleShipToChange} required />
+            </div>
+            <div>
+              <label className="label-text">Country code</label>
+              <input className="input-field" name="country_code" value={shipTo.country_code} onChange={handleShipToChange} maxLength={2} required />
+            </div>
+            <div>
+              <label className="label-text">Phone</label>
+              <input className="input-field" name="phone" value={shipTo.phone} onChange={handleShipToChange} required />
+            </div>
+            <div>
+              <label className="label-text">Residential</label>
+              <select
+                className="input-field"
+                name="address_residential_indicator"
+                value={shipTo.address_residential_indicator}
+                onChange={handleShipToChange}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No (commercial)</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="label-text">Weight (lbs)</label>
-            <input className="input-field" type="number" name="weight_lbs" value={form.weight_lbs} onChange={handleChange} min="0.1" step="0.1" required />
-          </div>
-          <div>
-            <label className="label-text">Length (in)</label>
-            <input className="input-field" type="number" name="length" value={form.length} onChange={handleChange} min="1" required />
-          </div>
-          <div>
-            <label className="label-text">Width (in)</label>
-            <input className="input-field" type="number" name="width" value={form.width} onChange={handleChange} min="1" required />
-          </div>
-          <div>
-            <label className="label-text">Height (in)</label>
-            <input className="input-field" type="number" name="height" value={form.height} onChange={handleChange} min="1" required />
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Package</h3>
+          {selectedCarrier && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 mb-3">
+              Selected carrier: <span className="font-semibold">{selectedCarrier.friendly_name || selectedCarrier.carrier_code}</span>
+              <span className="font-mono ml-2 text-xs text-blue-600">({form.carrier_id})</span>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label-text">Weight (lbs)</label>
+              <input className="input-field" type="number" name="weight_lbs" value={form.weight_lbs} onChange={handleChange} min="0.1" step="0.1" required />
+            </div>
+            <div>
+              <label className="label-text">Length (in)</label>
+              <input className="input-field" type="number" name="length" value={form.length} onChange={handleChange} min="1" required />
+            </div>
+            <div>
+              <label className="label-text">Width (in)</label>
+              <input className="input-field" type="number" name="width" value={form.width} onChange={handleChange} min="1" required />
+            </div>
+            <div>
+              <label className="label-text">Height (in)</label>
+              <input className="input-field" type="number" name="height" value={form.height} onChange={handleChange} min="1" required />
+            </div>
           </div>
         </div>
 
@@ -414,6 +494,7 @@ export default function Step2Rates() {
                       <td className="py-3 pr-4 font-semibold text-gray-900">{formatRate(rate)}</td>
                       <td className="py-3">
                         <button
+                          type="button"
                           onClick={() => handleSelect(rate)}
                           disabled={labelCreating}
                           className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
@@ -434,7 +515,7 @@ export default function Step2Rates() {
 
           {selectedId && (
             <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-              <button onClick={handleContinue} disabled={labelCreating} className="btn-primary">
+              <button type="button" onClick={handleContinue} disabled={labelCreating} className="btn-primary">
                 {labelCreating ? 'Creating Label...' : 'Continue →'}
               </button>
             </div>

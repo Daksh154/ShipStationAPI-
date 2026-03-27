@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
-
-const initialForm = {
-  name: 'John Doe',
-  phone: '+1 202-555-1234',
-  address_line1: '1600 Pennsylvania Ave NW',
-  city_locality: 'Washington',
-  state_province: 'DC',
-  postal_code: '20500',
-  country_code: 'US',
-};
+import { STEP1_INITIAL_FORM } from '../../constants/demoAddresses';
 
 export default function Step1AddressValidation() {
   const { setValidatedAddress, goToStep, updateChecklist } = useFlow();
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(STEP1_INITIAL_FORM);
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));

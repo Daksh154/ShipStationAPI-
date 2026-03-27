@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFlow } from '../../context/FlowContext';
 import { createLabel, voidLabel } from '../../api/shipstation';
+import {
+  DEFAULT_SHIP_FROM,
+  DEFAULT_SHIP_TO_FALLBACK,
+  shipToFromValidatedAddress,
+} from '../../constants/demoAddresses';
 
 export default function Step3CreateLabel() {
   const {
@@ -15,19 +20,17 @@ export default function Step3CreateLabel() {
     updateChecklist,
   } = useFlow();
 
-  const [shipFrom, setShipFrom] = useState({
-    name: 'My Store',
-    company_name: 'My Store Inc.',
-    phone: '+1 512-555-1234',
-    address_line1: '4009 Marathon Blvd',
-    city_locality: 'Austin',
-    state_province: 'TX',
-    postal_code: '78756',
-    country_code: 'US',
-    address_residential_indicator: 'no',
-  });
+  const [shipFrom, setShipFrom] = useState(() => ({ ...DEFAULT_SHIP_FROM }));
+  const [shipTo, setShipTo] = useState(() => ({ ...DEFAULT_SHIP_TO_FALLBACK }));
 
-  const [shipToPhone, setShipToPhone] = useState('+1 202-555-1234');
+  useEffect(() => {
+    if (validatedAddress) {
+      setShipTo(shipToFromValidatedAddress(validatedAddress));
+    } else {
+      setShipTo({ ...DEFAULT_SHIP_TO_FALLBACK });
+    }
+  }, [validatedAddress]);
+
   const [weight, setWeight] = useState({ value: 20, unit: 'ounce' });
   const [dimensions, setDimensions] = useState({ length: 12, width: 8, height: 4, unit: 'inch' });
   const [labelFormat, setLabelFormat] = useState('pdf');
@@ -42,33 +45,15 @@ export default function Step3CreateLabel() {
     setShipFrom((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
+  function handleShipToChange(e) {
+    setShipTo((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setResult(null);
-
-    const shipTo = validatedAddress
-      ? {
-          name: validatedAddress.name || 'Recipient',
-          phone: shipToPhone,
-          address_line1: validatedAddress.address_line1,
-          city_locality: validatedAddress.city_locality,
-          state_province: validatedAddress.state_province,
-          postal_code: validatedAddress.postal_code,
-          country_code: validatedAddress.country_code || 'US',
-          address_residential_indicator: 'yes',
-        }
-      : {
-          name: 'Jane Doe',
-          phone: shipToPhone,
-          address_line1: '525 S Winchester Blvd',
-          city_locality: 'San Jose',
-          state_province: 'CA',
-          postal_code: '95128',
-          country_code: 'US',
-          address_residential_indicator: 'yes',
-        };
 
     const body = {
       test_label: true,
@@ -150,13 +135,16 @@ export default function Step3CreateLabel() {
 
       {!result && (
         <form onSubmit={handleSubmit} className="step-card space-y-5">
-          {/* Ship From */}
           <div>
             <h2 className="section-title">Ship From</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="label-text">Name / Company</label>
+                <label className="label-text">Name</label>
                 <input className="input-field" name="name" value={shipFrom.name} onChange={handleShipFromChange} required />
+              </div>
+              <div className="col-span-2">
+                <label className="label-text">Company</label>
+                <input className="input-field" name="company_name" value={shipFrom.company_name} onChange={handleShipFromChange} />
               </div>
               <div className="col-span-2">
                 <label className="label-text">Address</label>
@@ -175,38 +163,79 @@ export default function Step3CreateLabel() {
                 <input className="input-field" name="postal_code" value={shipFrom.postal_code} onChange={handleShipFromChange} required />
               </div>
               <div>
+                <label className="label-text">Country</label>
+                <input className="input-field" name="country_code" value={shipFrom.country_code} onChange={handleShipFromChange} maxLength={2} required />
+              </div>
+              <div>
                 <label className="label-text">Phone</label>
                 <input className="input-field" name="phone" value={shipFrom.phone} onChange={handleShipFromChange} required />
               </div>
-            </div>
-          </div>
-
-          {/* Ship To */}
-          <div>
-            <h2 className="section-title">Ship To (from Step 1)</h2>
-            {validatedAddress ? (
-              <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-700 space-y-1">
-                <p className="font-medium">{validatedAddress.name || 'Recipient'}</p>
-                <p>{validatedAddress.address_line1}</p>
-                <p>{validatedAddress.city_locality}, {validatedAddress.state_province} {validatedAddress.postal_code}</p>
-                <p>{validatedAddress.country_code}</p>
+              <div>
+                <label className="label-text">Residential</label>
+                <select
+                  className="input-field"
+                  name="address_residential_indicator"
+                  value={shipFrom.address_residential_indicator}
+                  onChange={handleShipFromChange}
+                >
+                  <option value="no">No (commercial)</option>
+                  <option value="yes">Yes</option>
+                </select>
               </div>
-            ) : (
-              <p className="text-sm text-gray-400 italic">Complete Step 1 to auto-fill address. A sample San Jose address will be used.</p>
-            )}
-            <div className="mt-3">
-              <label className="label-text">Recipient Phone <span className="text-red-500">*</span></label>
-              <input
-                className="input-field"
-                value={shipToPhone}
-                onChange={(e) => setShipToPhone(e.target.value)}
-                placeholder="+1 555-555-5555"
-                required
-              />
             </div>
           </div>
 
-          {/* Package */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="section-title mb-0">Ship To</h2>
+              {validatedAddress && (
+                <span className="text-xs text-blue-600 font-medium">Prefilled from Step 1 — editable</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="label-text">Name</label>
+                <input className="input-field" name="name" value={shipTo.name} onChange={handleShipToChange} required />
+              </div>
+              <div className="col-span-2">
+                <label className="label-text">Address</label>
+                <input className="input-field" name="address_line1" value={shipTo.address_line1} onChange={handleShipToChange} required />
+              </div>
+              <div>
+                <label className="label-text">City</label>
+                <input className="input-field" name="city_locality" value={shipTo.city_locality} onChange={handleShipToChange} required />
+              </div>
+              <div>
+                <label className="label-text">State</label>
+                <input className="input-field" name="state_province" value={shipTo.state_province} onChange={handleShipToChange} required />
+              </div>
+              <div>
+                <label className="label-text">Postal Code</label>
+                <input className="input-field" name="postal_code" value={shipTo.postal_code} onChange={handleShipToChange} required />
+              </div>
+              <div>
+                <label className="label-text">Country</label>
+                <input className="input-field" name="country_code" value={shipTo.country_code} onChange={handleShipToChange} maxLength={2} required />
+              </div>
+              <div>
+                <label className="label-text">Phone</label>
+                <input className="input-field" name="phone" value={shipTo.phone} onChange={handleShipToChange} required />
+              </div>
+              <div>
+                <label className="label-text">Residential</label>
+                <select
+                  className="input-field"
+                  name="address_residential_indicator"
+                  value={shipTo.address_residential_indicator}
+                  onChange={handleShipToChange}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No (commercial)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div>
             <h2 className="section-title">Package</h2>
             <div className="grid grid-cols-2 gap-3">
@@ -244,7 +273,6 @@ export default function Step3CreateLabel() {
             </div>
           </div>
 
-          {/* Label Options */}
           <div>
             <h2 className="section-title">Label Options</h2>
             <div className="grid grid-cols-2 gap-3">
