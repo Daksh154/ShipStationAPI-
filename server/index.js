@@ -24,8 +24,7 @@ app.use('/api/shipstation/webhooks', webhookRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    mode: config.mode,
-    baseUrl: config.baseUrl || 'local-mock',
+    baseUrl: config.baseUrl,
     apiKeySet: !!config.apiKey,
   });
 });
@@ -33,10 +32,6 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 app.listen(config.port, () => {
-  console.log(`[${new Date().toISOString()}] Server running on port ${config.port} in ${config.mode.toUpperCase()} mode`);
-  if (config.baseUrl) {
-    console.log(`[${new Date().toISOString()}] ShipStation base URL: ${config.baseUrl}`);
-  } else {
-    console.log(`[${new Date().toISOString()}] Running in local mock mode — no network calls`);
-  }
+  console.log(`[${new Date().toISOString()}] Server running on port ${config.port}`);
+  console.log(`[${new Date().toISOString()}] ShipStation base URL: ${config.baseUrl}`);
 });
