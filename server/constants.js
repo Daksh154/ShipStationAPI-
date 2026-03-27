@@ -1,8 +1,5 @@
 // ShipStation API v2 paths
 const SHIPSTATION_PATHS = {
-  // ShipStation v2 does not currently include a dedicated address validation endpoint.
-  // We keep this here only for reference; the address route will not call it.
-  ADDRESS_VALIDATE: '/v2/addresses/validate',
   RATES: '/v2/rates',
   RATES_ESTIMATE: '/v2/rates/estimate',
   SHIPMENTS: '/v2/shipments',

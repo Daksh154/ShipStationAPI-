@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useFlow } from '../../context/FlowContext';
 
 const CHECKLIST_ITEMS = [
-  { key: 'addressValid',       label: 'Address validation (valid address)' },
-  { key: 'addressInvalid',     label: 'Address validation (invalid/warning address)' },
+  { key: 'addressValid',       label: 'Ship-to address captured (Step 1)' },
   { key: 'rateFetching',       label: 'Rate fetching (real carrier rates)' },
   { key: 'labelCreate',        label: 'Label creation (POST /v2/labels)' },
   { key: 'labelVoid',          label: 'Label void' },
@@ -14,14 +13,6 @@ const CHECKLIST_ITEMS = [
 ];
 
 const ENDPOINT_SOURCES = [
-  {
-    endpoint: 'POST /address/validate',
-    mockSource: 'Local echo',
-    sandboxSource: 'Local echo',
-    liveSource: 'Local echo',
-    reason: 'ShipStation API v2 does not currently include a dedicated address validation endpoint. Validation can be requested during label purchase via validate_address.',
-    verified: true,
-  },
   {
     endpoint: 'GET /carriers',
     mockSource: 'Local 3-carrier list',
@@ -80,31 +71,26 @@ const ENDPOINT_SOURCES = [
   },
 ];
 
-const CURL_EXAMPLES = `# 1. Address Validation
-curl -X POST http://localhost:3001/api/shipstation/address/validate \\
-  -H "Content-Type: application/json" \\
-  -d '[{"name":"John Doe","address_line1":"525 S Winchester Blvd","city_locality":"San Jose","state_province":"CA","postal_code":"95128","country_code":"US"}]'
-
-# 2. Get Carriers
+const CURL_EXAMPLES = `# 1. Get Carriers
 curl http://localhost:3001/api/shipstation/carriers
 
-# 3. Get Rates
+# 2. Get Rates
 curl -X POST http://localhost:3001/api/shipstation/rates \\
   -H "Content-Type: application/json" \\
   -d '{"carrier_ids":["YOUR_CARRIER_ID"],"from_postal_code":"78756","to_postal_code":"95128","from_country_code":"US","to_country_code":"US","weight":{"value":20,"unit":"ounce"},"dimensions":{"length":12,"width":8,"height":4,"unit":"inch"}}'
 
-# 4. Create Label (single call — shipment + label)
+# 3. Create Label (single call — shipment + label)
 curl -X POST http://localhost:3001/api/shipstation/label/create \\
   -H "Content-Type: application/json" \\
   -d '{"carrier_id":"YOUR_CARRIER_ID","service_code":"usps_priority_mail","ship_from":{"name":"My Store","phone":"+1 512-555-1234","address_line1":"4009 Marathon Blvd","city_locality":"Austin","state_province":"TX","postal_code":"78756","country_code":"US","address_residential_indicator":"no"},"ship_to":{"name":"Jane Doe","phone":"+1 444-444-4444","address_line1":"525 S Winchester Blvd","city_locality":"San Jose","state_province":"CA","postal_code":"95128","country_code":"US","address_residential_indicator":"yes"},"packages":[{"weight":{"value":20,"unit":"ounce"},"dimensions":{"length":12,"width":8,"height":4,"unit":"inch"}}]}'
 
-# 5. Track Label
+# 4. Track Label
 curl http://localhost:3001/api/shipstation/label/YOUR_LABEL_ID/track
 
-# 6. Void Label
+# 5. Void Label
 curl -X PUT http://localhost:3001/api/shipstation/label/YOUR_LABEL_ID/void
 
-# 7. Simulate Incoming Webhook
+# 6. Simulate Incoming Webhook
 curl -X POST http://localhost:3001/api/shipstation/webhooks/receive \\
   -H "Content-Type: application/json" \\
   -H "x-shipstation-timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \\

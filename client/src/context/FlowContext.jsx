@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 
 const defaultChecklist = {
   addressValid: 'pending',
-  addressInvalid: 'pending',
   rateFetching: 'pending',
   labelCreate: 'pending',
   labelVoid: 'pending',

@@ -2,7 +2,7 @@ import React from 'react';
 import { useFlow } from '../context/FlowContext';
 
 const steps = [
-  { id: 1, label: 'Address Validation', icon: '📍' },
+  { id: 1, label: 'Ship-to address', icon: '📍' },
   { id: 2, label: 'Get Rates',          icon: '💰' },
   { id: 3, label: 'Track Shipment',     icon: '🚚' },
   { id: 4, label: 'Webhooks',           icon: '🔔' },

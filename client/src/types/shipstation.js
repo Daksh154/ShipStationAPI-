@@ -102,7 +102,6 @@
  *
  * @typedef {Object} ChecklistStatus
  * @property {CheckStatus} addressValid
- * @property {CheckStatus} addressInvalid
  * @property {CheckStatus} rateFetching
  * @property {CheckStatus} shipmentCreation
  * @property {CheckStatus} labelPurchase

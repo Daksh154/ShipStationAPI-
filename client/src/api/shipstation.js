@@ -15,11 +15,6 @@ api.interceptors.response.use(
   }
 );
 
-export async function validateAddress(body) {
-  const { data } = await api.post('/address/validate', body);
-  return data;
-}
-
 export async function getCarriers() {
   const { data } = await api.get('/carriers');
   return data;
